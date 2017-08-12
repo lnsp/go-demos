@@ -55,7 +55,6 @@ func sendReport(w http.ResponseWriter, r *http.Request) {
 	}
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
-
 	report := struct {
 		City        string  `json:"city"`
 		Temperature float64 `json:"temperature"`
@@ -65,18 +64,15 @@ func sendReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("could not decode json: %v", err), http.StatusInternalServerError)
 		return
 	}
-
 	unit, ok := parseTemperatureUnit(report.Unit)
 	if !ok {
 		http.Error(w, "unknown unit of measurement", http.StatusBadRequest)
 		return
 	}
-
 	if err := service.Report(report.City, report.Temperature, unit); err != nil {
 		http.Error(w, fmt.Sprintf("could not save report: %v", err), http.StatusInternalServerError)
 		return
 	}
-
 	fmt.Fprintln(w, "ok")
 }
 
