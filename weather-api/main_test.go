@@ -70,10 +70,10 @@ func TestShowTemperature(t *testing.T) {
 		text   string
 	}{
 		{httptest.NewRequest("POST", "/city/munich", nil), http.StatusMethodNotAllowed, "method not allowed\n"},
-		{httptest.NewRequest("GET", "/city/munich", nil), http.StatusOK, `21.000` + "\n"},
-		{httptest.NewRequest("GET", "/city/munich?unit=kelvin", nil), http.StatusOK, `294.150` + "\n"},
-		{httptest.NewRequest("GET", "/city/munich?unit=celsius", nil), http.StatusOK, `21.000` + "\n"},
-		{httptest.NewRequest("GET", "/city/munich?unit=fahrenheit", nil), http.StatusOK, `69.800` + "\n"},
+		{httptest.NewRequest("GET", "/city/munich", nil), http.StatusOK, `{"city":"munich","temperature":21,"unit":"celsius"}` + "\n"},
+		{httptest.NewRequest("GET", "/city/munich?unit=kelvin", nil), http.StatusOK, `{"city":"munich","temperature":294.15,"unit":"kelvin"}` + "\n"},
+		{httptest.NewRequest("GET", "/city/munich?unit=celsius", nil), http.StatusOK, `{"city":"munich","temperature":21,"unit":"celsius"}` + "\n"},
+		{httptest.NewRequest("GET", "/city/munich?unit=fahrenheit", nil), http.StatusOK, `{"city":"munich","temperature":69.8,"unit":"fahrenheit"}` + "\n"},
 		{httptest.NewRequest("GET", "/city/munich?unit=useless", nil), http.StatusBadRequest, "unknown unit of measurement\n"},
 		{httptest.NewRequest("GET", "/city/", nil), http.StatusNotFound, "city not found\n"},
 		{httptest.NewRequest("GET", "/city/seattle", nil), http.StatusNotFound, "city not found\n"},
@@ -105,12 +105,12 @@ func TestSendReport(t *testing.T) {
 			"city": "munich",
 			"temperature": 21.0,
 			"unit": "celsius"
-		}`)), http.StatusOK, "ok\n"},
+		}`)), http.StatusOK, "/city/munich\n"},
 		{httptest.NewRequest("POST", "/report", bytes.NewBufferString(`{
 			"city": "munich",
 			"temperature": 69.8,
 			"unit": "fahrenheit"
-		}`)), http.StatusOK, "ok\n"},
+		}`)), http.StatusOK, "/city/munich\n"},
 		{httptest.NewRequest("POST", "/report", bytes.NewBufferString(`{
 			"city": "munich",
 			"temperature": 69.8,

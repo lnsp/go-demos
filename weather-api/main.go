@@ -4,10 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/lnsp/go-demos/weather"
 )
+
+type weatherReport struct {
+	City        string  `json:"city"`
+	Temperature float64 `json:"temperature"`
+	Unit        string  `json:"unit"`
+}
 
 func listCitiesHandler(service weather.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -16,10 +23,7 @@ func listCitiesHandler(service weather.Service) http.HandlerFunc {
 			return
 		}
 		cities := service.Cities()
-		encoder := json.NewEncoder(w)
-		if err := encoder.Encode(cities); err != nil {
-			http.Error(w, "failed to encode json", http.StatusInternalServerError)
-		}
+		json.NewEncoder(w).Encode(cities)
 	}
 }
 
@@ -44,7 +48,11 @@ func showTemperatureHandler(service weather.Service) http.HandlerFunc {
 			http.Error(w, "city not found", http.StatusNotFound)
 			return
 		}
-		fmt.Fprintf(w, "%.3f\n", temp)
+		json.NewEncoder(w).Encode(weatherReport{
+			City:        city,
+			Unit:        unit[0],
+			Temperature: temp,
+		})
 	}
 }
 
@@ -56,11 +64,7 @@ func sendReportHandler(service weather.Service) http.HandlerFunc {
 		}
 		decoder := json.NewDecoder(r.Body)
 		defer r.Body.Close()
-		report := struct {
-			City        string  `json:"city"`
-			Temperature float64 `json:"temperature"`
-			Unit        string  `json:"unit"`
-		}{}
+		report := weatherReport{}
 		if err := decoder.Decode(&report); err != nil {
 			http.Error(w, "failed to decode json", http.StatusInternalServerError)
 			return
@@ -74,7 +78,7 @@ func sendReportHandler(service weather.Service) http.HandlerFunc {
 			http.Error(w, "failed to save report", http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintln(w, "ok")
+		fmt.Fprintln(w, path.Join("/city", report.City))
 	}
 }
 
@@ -95,7 +99,7 @@ func main() {
 	http.HandleFunc("/city", listCitiesHandler(service))
 	http.HandleFunc("/city/", showTemperatureHandler(service))
 	http.HandleFunc("/report", sendReportHandler(service))
-	if err := http.ListenAndServe("localhost:8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", nil); err != nil {
 		panic(err)
 	}
 }
