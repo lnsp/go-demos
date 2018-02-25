@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/lnsp/go-demos/weather"
 )
@@ -16,26 +17,33 @@ func (s *ServiceMock) Cities() []string {
 	return []string{"munich"}
 }
 
-func (s *ServiceMock) Report(c string, t float64, u weather.Unit) error {
+func (s *ServiceMock) Report(c string, t float64, u weather.Unit) (int64, error) {
 	if c == "" {
-		return errors.New("no city reported")
+		return 0, errors.New("no city reported")
 	}
-	return nil
+	return time.Now().Unix(), nil
 }
 
-func (s *ServiceMock) TemperatureIn(c string, u weather.Unit) (float64, error) {
+func (s *ServiceMock) mockReport(t float64) weather.Report {
+	return weather.Report{
+		Temperature: t,
+		Timestamp:   1,
+	}
+}
+
+func (s *ServiceMock) TemperatureIn(c string, u weather.Unit) (weather.Report, error) {
 	if c != "munich" {
-		return 0.0, errors.New("city not found")
+		return weather.Report{}, errors.New("city not found")
 	}
 	switch u {
 	case weather.Kelvin:
-		return 294.15, nil
+		return s.mockReport(294.15), nil
 	case weather.Fahrenheit:
-		return 69.8, nil
+		return s.mockReport(69.8), nil
 	case weather.Celsius:
-		return 21.0, nil
+		return s.mockReport(21.0), nil
 	}
-	return 0.0, errors.New("unknown unit")
+	return s.mockReport(0.0), errors.New("unknown unit")
 }
 
 func TestListCities(t *testing.T) {
@@ -44,13 +52,12 @@ func TestListCities(t *testing.T) {
 		status int
 		text   string
 	}{
-		{httptest.NewRequest("POST", "/city", nil), http.StatusMethodNotAllowed, "method not allowed\n"},
-		{httptest.NewRequest("GET", "/city", nil), http.StatusOK, `["munich"]` + "\n"},
+		{httptest.NewRequest("GET", "/reports", nil), http.StatusOK, `["munich"]` + "\n"},
 	}
 
 	for _, tc := range testcases {
 		rr := httptest.NewRecorder()
-		handler := listCitiesHandler(&ServiceMock{})
+		handler := newWeatherAPI(&ServiceMock{})
 		handler.ServeHTTP(rr, tc.req)
 
 		if status := rr.Code; status != tc.status {
@@ -69,19 +76,19 @@ func TestShowTemperature(t *testing.T) {
 		status int
 		text   string
 	}{
-		{httptest.NewRequest("POST", "/city/munich", nil), http.StatusMethodNotAllowed, "method not allowed\n"},
-		{httptest.NewRequest("GET", "/city/munich", nil), http.StatusOK, `{"city":"munich","temperature":21,"unit":"celsius"}` + "\n"},
-		{httptest.NewRequest("GET", "/city/munich?unit=kelvin", nil), http.StatusOK, `{"city":"munich","temperature":294.15,"unit":"kelvin"}` + "\n"},
-		{httptest.NewRequest("GET", "/city/munich?unit=celsius", nil), http.StatusOK, `{"city":"munich","temperature":21,"unit":"celsius"}` + "\n"},
-		{httptest.NewRequest("GET", "/city/munich?unit=fahrenheit", nil), http.StatusOK, `{"city":"munich","temperature":69.8,"unit":"fahrenheit"}` + "\n"},
-		{httptest.NewRequest("GET", "/city/munich?unit=useless", nil), http.StatusBadRequest, "unknown unit of measurement\n"},
-		{httptest.NewRequest("GET", "/city/", nil), http.StatusNotFound, "city not found\n"},
-		{httptest.NewRequest("GET", "/city/seattle", nil), http.StatusNotFound, "city not found\n"},
+		{httptest.NewRequest("POST", "/reports/munich", nil), http.StatusMethodNotAllowed, ""},
+		{httptest.NewRequest("GET", "/reports/munich", nil), http.StatusOK, `{"city":"munich","temperature":21,"unit":"celsius","timestamp":1}` + "\n"},
+		{httptest.NewRequest("GET", "/reports/munich?unit=kelvin", nil), http.StatusOK, `{"city":"munich","temperature":294.15,"unit":"kelvin","timestamp":1}` + "\n"},
+		{httptest.NewRequest("GET", "/reports/munich?unit=celsius", nil), http.StatusOK, `{"city":"munich","temperature":21,"unit":"celsius","timestamp":1}` + "\n"},
+		{httptest.NewRequest("GET", "/reports/munich?unit=fahrenheit", nil), http.StatusOK, `{"city":"munich","temperature":69.8,"unit":"fahrenheit","timestamp":1}` + "\n"},
+		{httptest.NewRequest("GET", "/reports/munich?unit=useless", nil), http.StatusBadRequest, "Invalid unit of measurement\n"},
+		{httptest.NewRequest("GET", "/reports/", nil), http.StatusNotFound, "404 page not found\n"},
+		{httptest.NewRequest("GET", "/reports/seattle", nil), http.StatusNotFound, "Could not find weather station\n"},
 	}
 
 	for _, tc := range testcases {
 		rr := httptest.NewRecorder()
-		handler := showTemperatureHandler(&ServiceMock{})
+		handler := newWeatherAPI(&ServiceMock{})
 		handler.ServeHTTP(rr, tc.req)
 
 		if status := rr.Code; status != tc.status {
@@ -130,7 +137,7 @@ func TestSendReport(t *testing.T) {
 
 	for _, tc := range testcases {
 		rr := httptest.NewRecorder()
-		handler := sendReportHandler(&ServiceMock{})
+		handler := newWeatherAPI(&ServiceMock{})
 		handler.ServeHTTP(rr, tc.req)
 
 		if status := rr.Code; status != tc.status {

@@ -1,0 +1,113 @@
+openapi: 3.0.0
+info:
+  description: |
+    This API is designed for being easily implementable and testable.
+    It provides a basic weather-service like functionality with the
+    ability to store, organize and retrieve weather station reports.
+  version: '2.0.0'
+  title: Simple Weather API
+tags:
+  - name: reports
+    description: Store and fetch weather reports
+paths:
+  /reports:
+    post:
+      tags:
+        - reports
+      summary: Publish a new weather report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Report'
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Invalid JSON request body
+        '500':
+          description: Failure while writing report to datastore
+    get:
+      tags:
+        - reports
+      summary: List all published stations
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                example: ['munich', 'zurich', 'berlin']
+        '500':
+          description: Failure while retrieving reports from datastore
+  /reports/{city}:
+    get:
+      tags:
+        - reports
+      summary: List the most recently published report
+      parameters:
+        - in: path
+          name: city
+          schema:
+            type: string
+          required: true
+          description: the station name
+        - in: query
+          name: count
+          schema:
+            type: integer
+          description: the maximum number of reporta
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+        '400':
+          description: Invalid unit of measurement
+        '404':
+          description: Weather station does not exist
+components:
+  schemas:
+    Station:
+      type: object
+      required:
+        - city
+        - lastReport
+      properties:
+        city:
+          type: string
+          example: "munich"
+        lastReport:
+          type: integer
+          example: 1519440229
+    Report:
+      type: object
+      required:
+        - city
+        - unit
+        - temperature
+      properties:
+        city:
+          type: string
+          example: "munich"
+        unit:
+          type: string
+          enum:
+            - "celsius"
+            - "kelvin"
+            - "fahrenheit"
+          example: "celsius"
+        temperature:
+          type: number
+          example: 12.0
+        timestamp:
+          type: integer
+          example: 1519440229

@@ -6,7 +6,14 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
+
+// Report stores weather information at a specific point in time.
+type Report struct {
+	Timestamp   int64
+	Temperature float64
+}
 
 // Unit is a kind of temperature measurement unit
 type Unit int
@@ -33,34 +40,41 @@ const (
 // InMemoryService is a in-memory implementation of a weather data service.
 type InMemoryService struct {
 	lock sync.RWMutex
-	data map[string]float64
+	data map[string]Report
 }
 
 // Report stores the current temperature report in the memory.
-func (service *InMemoryService) Report(city string, temperature float64, unit Unit) error {
+func (service *InMemoryService) Report(city string, temperature float64, unit Unit) (int64, error) {
 	service.lock.Lock()
 	defer service.lock.Unlock()
 
 	city = reduceToTag(city)
 	kelvin := convertTemperature(temperature, unit, Kelvin)
 	if kelvin < 0.0 {
-		return ErrInvalidTemperature
+		return 0, ErrInvalidTemperature
 	}
-	service.data[city] = kelvin
-	return nil
+	ts := time.Now().Unix()
+	service.data[city] = Report{
+		Temperature: kelvin,
+		Timestamp:   ts,
+	}
+	return ts, nil
 }
 
 // TemperatureIn retrieves the current temperature in the city.
-func (service *InMemoryService) TemperatureIn(city string, unit Unit) (float64, error) {
+func (service *InMemoryService) TemperatureIn(city string, unit Unit) (Report, error) {
 	service.lock.RLock()
 	defer service.lock.RUnlock()
 
 	city = reduceToTag(city)
-	temp, found := service.data[city]
+	report, found := service.data[city]
 	if !found {
-		return 0, ErrNotFound
+		return Report{}, ErrNotFound
 	}
-	return convertTemperature(temp, Kelvin, unit), nil
+	return Report{
+		Temperature: convertTemperature(report.Temperature, Kelvin, unit),
+		Timestamp:   report.Timestamp,
+	}, nil
 }
 
 // Cities returns a list of all stored cities.
@@ -78,14 +92,14 @@ func (service *InMemoryService) Cities() []string {
 func NewInMemoryService() *InMemoryService {
 	return &InMemoryService{
 		lock: sync.RWMutex{},
-		data: make(map[string]float64),
+		data: make(map[string]Report),
 	}
 }
 
 // Service stores and retrieves local weather information.
 type Service interface {
-	Report(city string, temperature float64, unit Unit) error
-	TemperatureIn(city string, unit Unit) (float64, error)
+	Report(city string, temperature float64, unit Unit) (int64, error)
+	TemperatureIn(city string, unit Unit) (Report, error)
 	Cities() []string
 }
 

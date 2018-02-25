@@ -3,6 +3,7 @@ package weather
 import (
 	"math"
 	"testing"
+	"time"
 )
 
 func equal(a, b float64) bool {
@@ -57,16 +58,16 @@ func TestConvertTemperature(t *testing.T) {
 func TestNewInMemoryService(t *testing.T) {
 	s := NewInMemoryService()
 	if len(s.data) != 0 {
-		t.Error("initial data store should be empty, has length %d", len(s.data))
+		t.Errorf("initial data store should be empty, has length %d", len(s.data))
 	}
 }
 
 func TestCities(t *testing.T) {
 	s := NewInMemoryService()
-	s.data = map[string]float64{
-		"munich":  0.0,
-		"berlin":  1.0,
-		"seattle": 2.0,
+	s.data = map[string]Report{
+		"munich":  {0, 0.0},
+		"berlin":  {0, 1.0},
+		"seattle": {0, 2.0},
 	}
 	expected := []string{
 		"munich",
@@ -92,10 +93,10 @@ func TestCities(t *testing.T) {
 
 func TestTemperatureIn(t *testing.T) {
 	s := NewInMemoryService()
-	s.data = map[string]float64{
-		"munich":  294.15,
-		"berlin":  263.15,
-		"seattle": 0.0,
+	s.data = map[string]Report{
+		"munich":  {0, 294.15},
+		"berlin":  {0, 263.15},
+		"seattle": {0, 0},
 	}
 
 	testcases := []struct {
@@ -118,8 +119,8 @@ func TestTemperatureIn(t *testing.T) {
 		} else if err == nil && tc.err {
 			t.Error("expected error, got nothing")
 		}
-		if !equal(tc.temperature, result) {
-			t.Errorf("expected value %f, got %f", tc.temperature, result)
+		if !equal(tc.temperature, result.Temperature) {
+			t.Errorf("expected value %f, got %f", tc.temperature, result.Temperature)
 		}
 	}
 }
@@ -148,10 +149,12 @@ func TestReport(t *testing.T) {
 	}
 
 	for _, tc := range input {
-		if err := s.Report(tc.city, tc.temperature, tc.unit); err != nil && !tc.err {
+		if timestamp, err := s.Report(tc.city, tc.temperature, tc.unit); err != nil && !tc.err {
 			t.Errorf("unexpected error: %v", err)
 		} else if err == nil && tc.err {
 			t.Error("expected error, got nothing")
+		} else if timestamp > time.Now().Unix() {
+			t.Errorf("timestamp is set in the future")
 		}
 	}
 
@@ -163,8 +166,10 @@ func TestReport(t *testing.T) {
 		result, ok := s.data[city]
 		if !ok {
 			t.Errorf("expected city %s not found", city)
-		} else if !equal(result, temperature) {
-			t.Errorf("expected value %f, got %f", temperature, result)
+		} else if !equal(result.Temperature, temperature) {
+			t.Errorf("expected value %f, got %f", temperature, result.Temperature)
+		} else if result.Timestamp > time.Now().Unix() {
+			t.Errorf("timestamp is set in the future")
 		}
 	}
 }
